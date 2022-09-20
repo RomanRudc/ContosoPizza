@@ -1,65 +1,122 @@
-using ContosoPizza.Models;
 using ContosoPizza.Services;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 namespace ContosoPizza.Controllers;
 
 [ApiController]
-[Route("[controller]")]
+[Route("pizza")]
 public class PizzaController : ControllerBase
 {
-    public PizzaController()
+    private readonly PizzaContext _context;
+    private readonly ILogger<PizzaController> _logger;
+
+    public PizzaController(PizzaContext context, ILogger<PizzaController> logger) 
     {
-
+        _context = context;
+        _logger = logger;
     }
-
+    
+    // TODO: instead of ActionResult<T>, use IActionResult, use controller methods
     [HttpGet]
-    public ActionResult<List<Pizza>> GetAll() =>
-        PizzaService.GetAll();
+    public async Task<IActionResult> GetPizzas()
+        => Ok(await _context.Pizzas.ToListAsync());
 
     [HttpGet("{id}")]
-    public ActionResult<Pizza> Get(int id)
+    public async Task<IActionResult> GetPizza(int id)
     {
-        var pizza = PizzaService.Get(id);
+        var pizza = await _context.Pizzas.FirstOrDefaultAsync(p => p.Id == id);
+        // var pizza = await _context.Pizzas.FindAsync(id);
 
-        if(pizza == null)
+        if (pizza == null)
+        {
             return NotFound();
+        }
 
-        return pizza;
+        return Ok(pizza);
+    }
+
+    [HttpPut("{id}")]
+    public async Task<IActionResult> PutPizza(int id, PizzaUpdate pizzaUpdate)
+    {
+        var pizza = await _context.Pizzas.FirstOrDefaultAsync(p => p.Id == id);
+
+        if (pizza == null)
+        {
+            return NotFound();
+        }
+
+        pizza.Name = pizzaUpdate.Name;
+        pizza.IsGlutenFree = pizzaUpdate.IsGlutenFree;
+
+        try
+        {
+            await _context.SaveChangesAsync();
+        }
+        catch (DbUpdateException)
+        {
+            return BadRequest();
+        }
+
+        return NoContent();
     }
 
     [HttpPost]
-    public IActionResult Create(Pizza pizza)
-    {            
-        PizzaService.Add(pizza);
-        return CreatedAtAction(nameof(Create), new { id = pizza.Id }, pizza);
-}
-
-    [HttpPut("{id}")]
-    public IActionResult Update(int id, Pizza pizza)
+    public async Task<IActionResult> PostPizza(PizzaCreate pizzaCreate)
     {
-        if (id != pizza.Id)
-            return BadRequest();
-            
-        var existingPizza = PizzaService.Get(id);
-        if(existingPizza is null)
-            return NotFound();
-    
-        PizzaService.Update(pizza);           
-    
-        return NoContent();
+        var pizza = new PizzaEntity
+        {
+            Id = pizzaCreate.Id,
+            Name = pizzaCreate.Name,
+            IsGlutenFree = pizzaCreate.IsGlutenFree
+        };
+
+        await _context.Pizzas.AddAsync(pizza);
+
+        try
+        {
+            await _context.SaveChangesAsync();
+        }
+        catch (DbUpdateException ex)
+        {
+            _logger.LogError(ex, "Pizza creation failed");
+            return BadRequest(new 
+            { 
+                Message = "Something went wrong."
+            });
+        }
+
+        return CreatedAtAction(nameof(GetPizza), new { id = pizza.Id }, pizza);
     }
 
     [HttpDelete("{id}")]
-    public IActionResult Delete(int id)
+    public async Task<IActionResult> DeletePizza(int id)
     {
-        var pizza = PizzaService.Get(id);
-    
-        if (pizza is null)
+        var pizza = await _context.Pizzas.FindAsync(id);
+        if (pizza == null)
+        {
             return NotFound();
-        
-        PizzaService.Delete(id);
-    
+        }
+
+        _context.Pizzas.Remove(pizza);
+        await _context.SaveChangesAsync();
+
         return NoContent();
     }
+}
+
+public sealed class PizzaUpdate
+{
+    public string Name { get; set; } = string.Empty;
+
+    public bool IsGlutenFree { get; set; }
+}
+
+public sealed class PizzaCreate
+{
+    public int Id { get; set; }
+
+    public string Name { get; set; } = string.Empty;
+
+    public bool IsGlutenFree { get; set; }
 }
