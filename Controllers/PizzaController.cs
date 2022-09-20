@@ -1,8 +1,6 @@
-using ContosoPizza.Models;
 using ContosoPizza.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using static ContosoPizza.Services.PizzaContext;
 
 namespace ContosoPizza.Controllers;
 
@@ -11,78 +9,84 @@ namespace ContosoPizza.Controllers;
 public class PizzaController : ControllerBase
 {
     private readonly PizzaContext _context;
+    private readonly ILogger<PizzaController> _logger;
 
-    public PizzaController(PizzaContext context) => _context = context;
-    
-    [HttpGet]
-    public async Task<ActionResult<IEnumerable<PizzaEntity>>> GetPizzas()
+    public PizzaController(PizzaContext context, ILogger<PizzaController> logger) 
     {
-        return await _context.Pizzas.ToListAsync();
+        _context = context;
+        _logger = logger;
     }
+    
+    // TODO: instead of ActionResult<T>, use IActionResult, use controller methods
+    [HttpGet]
+    public async Task<IActionResult> GetPizzas()
+        => Ok(await _context.Pizzas.ToListAsync());
 
     [HttpGet("{id}")]
-    public async Task<ActionResult<PizzaEntity>> GetPizza(int id)
+    public async Task<IActionResult> GetPizza(int id)
     {
-        var pizza = await _context.Pizzas.FindAsync(id);
+        var pizza = await _context.Pizzas.FirstOrDefaultAsync(p => p.Id == id);
+        // var pizza = await _context.Pizzas.FindAsync(id);
 
         if (pizza == null)
         {
             return NotFound();
         }
 
-        return pizza;
+        return Ok(pizza);
     }
 
     [HttpPut("{id}")]
-    public async Task<IActionResult> PutPizza(int id, PizzaEntity pizza)
+    public async Task<IActionResult> PutPizza(int id, PizzaUpdate pizzaUpdate)
     {
-        if (id != pizza.Id)
+        var pizza = await _context.Pizzas.FirstOrDefaultAsync(p => p.Id == id);
+
+        if (pizza == null)
         {
-            return BadRequest();
+            return NotFound();
         }
 
-        _context.Entry(pizza).State = EntityState.Modified;
+        pizza.Name = pizzaUpdate.Name;
+        pizza.IsGlutenFree = pizzaUpdate.IsGlutenFree;
 
-        try
-        {
-            await _context.SaveChangesAsync();
-        }
-        catch (DbUpdateConcurrencyException)
-        {
-            if (!PizzaExists(id))
-            {
-                return NotFound();
-            }
-            else
-            {
-                throw;
-            }
-        }
-
-        return NoContent();
-    }
-
-    [HttpPost]
-    public async Task<ActionResult<Pizza>> PostPizza(PizzaEntity pizza)
-    {
-        _context.Pizzas.Add(pizza);
         try
         {
             await _context.SaveChangesAsync();
         }
         catch (DbUpdateException)
         {
-            if (PizzaExists(pizza.Id))
-            {
-                return Conflict();
-            }
-            else
-            {
-                throw;
-            }
+            return BadRequest();
         }
 
-        return CreatedAtAction("GetPizza", new { id = pizza.Id }, pizza);
+        return NoContent();
+    }
+
+    [HttpPost]
+    public async Task<IActionResult> PostPizza(PizzaCreate pizzaCreate)
+    {
+        var pizza = new PizzaEntity
+        {
+            Id = pizzaCreate.Id,
+            Name = pizzaCreate.Name,
+            IsGlutenFree = pizzaCreate.IsGlutenFree
+        };
+
+        await _context.Pizzas.AddAsync(pizza);
+
+        try
+        {
+            await _context.SaveChangesAsync();
+        }
+        catch (DbUpdateException ex)
+        {
+            _logger.LogError(ex, "Pizza update failed");
+            return BadRequest(new 
+            { 
+                Message = "Something went wrong."
+            });
+        }
+
+        return CreatedAtAction(nameof(GetPizza), new { id = pizza.Id }, pizza);
     }
 
     [HttpDelete("{id}")]
@@ -99,9 +103,20 @@ public class PizzaController : ControllerBase
 
         return NoContent();
     }
+}
 
-    private bool PizzaExists(int id)
-    {
-        return _context.Pizzas.Any(e => e.Id == id);
-    }
+public sealed class PizzaUpdate
+{
+    public string Name { get; set; } = string.Empty;
+
+    public bool IsGlutenFree { get; set; }
+}
+
+public sealed class PizzaCreate
+{
+    public int Id { get; set; }
+
+    public string Name { get; set; } = string.Empty;
+
+    public bool IsGlutenFree { get; set; }
 }

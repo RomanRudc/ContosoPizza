@@ -1,5 +1,4 @@
 using Microsoft.EntityFrameworkCore;
-using Newtonsoft.Json;
 using ContosoPizza.Services;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -8,11 +7,7 @@ builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-builder.Services.AddDbContext<PizzaContext>
-    (options => options.UseSqlite("Name=PizzaDB"));
-
-builder.Services.AddMvc(option => option.EnableEndpointRouting = false)
-    .AddNewtonsoftJson(opt => opt.SerializerSettings.ReferenceLoopHandling = ReferenceLoopHandling.Ignore);
+builder.Services.AddDbContext<PizzaContext>(options => options.UseSqlite("Name=PizzaDB"));
 
 var app = builder.Build();
 
