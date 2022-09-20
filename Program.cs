@@ -7,7 +7,7 @@ builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-builder.Services.AddDbContext<PizzaContext>(options => options.UseSqlite("Name=PizzaDB"));
+builder.Services.AddDbContext<PizzaContext>(options => options.UseSqlite("Data source=InventoryManagement.db"));
 
 var app = builder.Build();
 

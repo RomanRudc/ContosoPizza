@@ -79,7 +79,7 @@ public class PizzaController : ControllerBase
         }
         catch (DbUpdateException ex)
         {
-            _logger.LogError(ex, "Pizza update failed");
+            _logger.LogError(ex, "Pizza creation failed");
             return BadRequest(new 
             { 
                 Message = "Something went wrong."
